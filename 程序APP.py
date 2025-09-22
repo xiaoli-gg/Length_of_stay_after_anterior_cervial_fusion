@@ -24,16 +24,30 @@ plt.rcParams['figure.facecolor'] = 'white'
 # Custom CSS styling
 st.markdown("""
 <style>
+/* Remove default Streamlit padding and margins */
+.main .block-container {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    max-width: 100%;
+}
+
+/* Hide Streamlit header and footer */
+header[data-testid="stHeader"] {
+    display: none;
+}
+
 .main-header {
     font-size: 2.2rem;
     color: #1f77b4;
     text-align: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
+    margin-top: 0;
 }
 .section-header {
     font-size: 1.4rem;
     color: #ff7f0e;
     margin-bottom: 1rem;
+    margin-top: 0;
     padding: 10px 0;
     border-bottom: 2px solid #f0f0f0;
 }
@@ -73,15 +87,13 @@ st.markdown("""
     background-color: #f8f9fa;
     padding: 20px;
     border-radius: 10px;
-    min-height: 600px;
-    overflow-y: auto;
+    margin-top: 0;
 }
 .output-section {
     background-color: #ffffff;
     padding: 20px;
     border-radius: 10px;
-    min-height: 600px;
-    overflow-y: auto;
+    margin-top: 0;
 }
 .feature-group {
     background-color: white;
@@ -328,7 +340,7 @@ def convert_inputs_to_dataframe(user_inputs):
 def main():
     # Page title
     st.markdown('<h1 class="main-header">🏥 Length of Stay Prediction Model</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666; margin-bottom: 1rem;">Interpretable Random Forest Model for Predicting Length of Stay After First Elective Open Anterior Cervical Fusion in Elderly Patients</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666; margin: 0 0 1rem 0; line-height: 1.4;">Interpretable Random Forest Model for Predicting Length of Stay After First Elective Open Anterior Cervical Fusion in Elderly Patients</p>', unsafe_allow_html=True)
     
     # Load model
     model = load_model("rf.pkl")
