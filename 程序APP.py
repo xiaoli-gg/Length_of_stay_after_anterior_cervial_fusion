@@ -26,8 +26,8 @@ st.markdown("""
 <style>
 /* Remove default Streamlit padding and margins */
 .main .block-container {
-    padding-top: 1rem;
-    padding-bottom: 1rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
     max-width: 100%;
 }
 
@@ -36,78 +36,126 @@ header[data-testid="stHeader"] {
     display: none;
 }
 
+/* Reduce Streamlit default spacing */
+.element-container {
+    margin-bottom: 0.5rem !important;
+}
+
 .main-header {
-    font-size: 2.2rem;
+    font-size: 1.8rem;
     color: #1f77b4;
     text-align: center;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.3rem;
     margin-top: 0;
 }
 .section-header {
-    font-size: 1.4rem;
+    font-size: 1.2rem;
     color: #ff7f0e;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
     margin-top: 0;
-    padding: 10px 0;
-    border-bottom: 2px solid #f0f0f0;
+    padding: 5px 0;
+    border-bottom: 1px solid #f0f0f0;
 }
 .prediction-box {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 25px;
-    border-radius: 15px;
-    margin: 20px 0;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 10px 0;
     text-align: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+.prediction-box h1 {
+    margin: 5px 0;
+    font-size: 1.5rem;
+}
+.prediction-box h2 {
+    margin: 5px 0;
+    font-size: 1.2rem;
+}
+.prediction-box h3 {
+    margin: 5px 0;
+    font-size: 1rem;
 }
 .risk-box {
-    padding: 20px;
-    border-radius: 10px;
-    margin: 15px 0;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 8px 0;
     text-align: center;
     font-weight: bold;
-    font-size: 1.1rem;
+    font-size: 0.9rem;
 }
 .low-risk {
     background-color: #d4edda;
     color: #155724;
-    border: 2px solid #c3e6cb;
+    border: 1px solid #c3e6cb;
 }
 .medium-risk {
     background-color: #fff3cd;
     color: #856404;
-    border: 2px solid #ffeaa7;
+    border: 1px solid #ffeaa7;
 }
 .high-risk {
     background-color: #f8d7da;
     color: #721c24;
-    border: 2px solid #f5c6cb;
+    border: 1px solid #f5c6cb;
 }
 .input-section {
     background-color: #f8f9fa;
-    padding: 20px;
+    padding: 15px;
     border-radius: 10px;
     margin-top: 0;
+    height: 85vh;
+    overflow-y: auto;
 }
 .output-section {
     background-color: #ffffff;
-    padding: 20px;
+    padding: 15px;
     border-radius: 10px;
     margin-top: 0;
+    height: 85vh;
+    overflow-y: auto;
 }
 .feature-group {
     background-color: white;
-    padding: 15px;
-    border-radius: 8px;
-    margin: 10px 0;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    padding: 10px;
+    border-radius: 6px;
+    margin: 6px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.feature-group strong {
+    font-size: 0.9rem;
+    color: #333;
 }
 .metric-container {
     background-color: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    border-left: 4px solid #007bff;
-    margin: 10px 0;
+    padding: 10px;
+    border-radius: 6px;
+    border-left: 3px solid #007bff;
+    margin: 8px 0;
+}
+.metric-container h4 {
+    margin: 0 0 5px 0;
+    font-size: 0.8rem;
+    color: #666;
+}
+.metric-container h2 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+.compact-info {
+    font-size: 0.8rem;
+    color: #666;
+    line-height: 1.3;
+    margin: 8px 0;
+}
+/* Reduce selectbox and form spacing */
+.stSelectbox > div > div {
+    margin-bottom: 0.3rem;
+}
+.stSelectbox label {
+    font-size: 0.9rem !important;
+    margin-bottom: 0.2rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -198,19 +246,19 @@ feature_order = [
 ]
 
 def create_probability_gauge(probability):
-    """Create a gauge chart using matplotlib"""
-    fig, ax = plt.subplots(figsize=(8, 6))
+    """Create a compact gauge chart using matplotlib"""
+    fig, ax = plt.subplots(figsize=(6, 4))
     
     # Create semicircle gauge
     theta1, theta2 = 0, np.pi
     center = (0.5, 0.5)
-    radius = 0.4
+    radius = 0.35
     
     # Background arc
     theta = np.linspace(theta1, theta2, 100)
     x = center[0] + radius * np.cos(theta)
     y = center[1] + radius * np.sin(theta)
-    ax.plot(x, y, 'lightgray', linewidth=20)
+    ax.plot(x, y, 'lightgray', linewidth=15)
     
     # Color segments
     segments = [
@@ -225,60 +273,53 @@ def create_probability_gauge(probability):
         theta_seg = np.linspace(start_angle, end_angle, 50)
         x_seg = center[0] + radius * np.cos(theta_seg)
         y_seg = center[1] + radius * np.sin(theta_seg)
-        ax.plot(x_seg, y_seg, color, linewidth=20)
+        ax.plot(x_seg, y_seg, color, linewidth=15)
     
     # Needle
     needle_angle = np.pi * (1 - probability/100)
     needle_x = center[0] + (radius-0.05) * np.cos(needle_angle)
     needle_y = center[1] + (radius-0.05) * np.sin(needle_angle)
-    ax.plot([center[0], needle_x], [center[1], needle_y], 'black', linewidth=4)
-    ax.plot(center[0], center[1], 'ko', markersize=8)
+    ax.plot([center[0], needle_x], [center[1], needle_y], 'black', linewidth=3)
+    ax.plot(center[0], center[1], 'ko', markersize=6)
     
     # Labels
-    ax.text(center[0], center[1]-0.15, f'{probability:.1f}%', 
-            ha='center', va='center', fontsize=24, fontweight='bold')
-    ax.text(center[0], center[1]-0.25, 'Long Stay Probability', 
-            ha='center', va='center', fontsize=14)
-    
-    # Risk zone labels
-    ax.text(0.15, 0.65, 'Low\nRisk', ha='center', va='center', fontsize=10, color='green')
-    ax.text(0.5, 0.85, 'Medium Risk', ha='center', va='center', fontsize=10, color='orange')
-    ax.text(0.85, 0.65, 'High\nRisk', ha='center', va='center', fontsize=10, color='red')
+    ax.text(center[0], center[1]-0.12, f'{probability:.1f}%', 
+            ha='center', va='center', fontsize=18, fontweight='bold')
+    ax.text(center[0], center[1]-0.2, 'Long Stay Risk', 
+            ha='center', va='center', fontsize=11)
     
     ax.set_xlim(0, 1)
-    ax.set_ylim(0.3, 1)
+    ax.set_ylim(0.35, 0.9)
     ax.set_aspect('equal')
     ax.axis('off')
-    ax.set_title('Risk Assessment Gauge', fontsize=16, pad=20)
     
     plt.tight_layout()
     return fig
 
 def create_probability_bars(short_prob, long_prob):
-    """Create probability bar chart"""
-    fig, ax = plt.subplots(figsize=(10, 6))
+    """Create compact probability bar chart"""
+    fig, ax = plt.subplots(figsize=(8, 3))
     
     categories = ['Short Stay', 'Long Stay']
     probabilities = [short_prob, long_prob]
     colors = ['#28a745' if short_prob > long_prob else '#90EE90', 
               '#dc3545' if long_prob > short_prob else '#FFB6C1']
     
-    bars = ax.barh(categories, probabilities, color=colors, alpha=0.8, height=0.6)
+    bars = ax.barh(categories, probabilities, color=colors, alpha=0.8, height=0.5)
     
     # Add percentage labels
     for i, (bar, prob) in enumerate(zip(bars, probabilities)):
         width = bar.get_width()
         ax.text(width + 1, bar.get_y() + bar.get_height()/2, 
-                f'{prob:.1f}%', ha='left', va='center', fontweight='bold', fontsize=14)
+                f'{prob:.1f}%', ha='left', va='center', fontweight='bold', fontsize=12)
     
     ax.set_xlim(0, 100)
-    ax.set_xlabel('Probability (%)', fontsize=12)
-    ax.set_title('Prediction Probabilities', fontsize=16, pad=20)
+    ax.set_xlabel('Probability (%)', fontsize=10)
+    ax.set_title('Prediction Probabilities', fontsize=12, pad=10)
     ax.grid(axis='x', alpha=0.3)
     
     # Add reference line at 50%
     ax.axvline(x=50, color='gray', linestyle='--', alpha=0.5)
-    ax.text(51, 1.5, '50%', rotation=90, va='bottom', ha='left', color='gray')
     
     plt.tight_layout()
     return fig
@@ -340,7 +381,7 @@ def convert_inputs_to_dataframe(user_inputs):
 def main():
     # Page title
     st.markdown('<h1 class="main-header">🏥 Length of Stay Prediction Model</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666; margin: 0 0 1rem 0; line-height: 1.4;">Interpretable Random Forest Model for Predicting Length of Stay After First Elective Open Anterior Cervical Fusion in Elderly Patients</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666; margin: 0 0 0.5rem 0; line-height: 1.2; font-size: 0.9rem;">Interpretable Random Forest Model for Predicting Length of Stay After First Elective Open Anterior Cervical Fusion in Elderly Patients</p>', unsafe_allow_html=True)
     
     # Load model
     model = load_model("rf.pkl")
@@ -468,52 +509,49 @@ def main():
                         """, unsafe_allow_html=True)
                         
                         # Detailed probabilities
-                        st.markdown("### 📊 Detailed Probabilities")
+                        st.markdown("### 📊 Probabilities")
                         
                         col1, col2 = st.columns(2)
                         with col1:
                             st.markdown(f"""
                             <div class="metric-container">
-                                <h4>Short Stay Probability</h4>
+                                <h4>Short Stay</h4>
                                 <h2 style="color: #28a745;">{short_stay_prob:.1f}%</h2>
                             </div>
                             """, unsafe_allow_html=True)
                         with col2:
                             st.markdown(f"""
                             <div class="metric-container">
-                                <h4>Long Stay Probability</h4>
+                                <h4>Long Stay</h4>
                                 <h2 style="color: #dc3545;">{long_stay_prob:.1f}%</h2>
                             </div>
                             """, unsafe_allow_html=True)
                         
-                        # Visualization 1: Risk Gauge
-                        st.markdown("### 🎯 Risk Assessment Gauge")
-                        gauge_fig = create_probability_gauge(long_stay_prob)
-                        st.pyplot(gauge_fig)
-                        plt.close()
+                        # Single comprehensive visualization
+                        col_vis1, col_vis2 = st.columns(2)
                         
-                        # Visualization 2: Probability Bars
-                        st.markdown("### 📈 Probability Comparison")
-                        bar_fig = create_probability_bars(short_stay_prob, long_stay_prob)
-                        st.pyplot(bar_fig)
-                        plt.close()
+                        with col_vis1:
+                            st.markdown("#### 🎯 Risk Gauge")
+                            gauge_fig = create_probability_gauge(long_stay_prob)
+                            st.pyplot(gauge_fig)
+                            plt.close()
                         
-                        # Visualization 3: Risk Level
-                        st.markdown("### 🚦 Risk Level Indicator")
-                        risk_fig = create_risk_visualization(long_stay_prob)
-                        st.pyplot(risk_fig)
-                        plt.close()
+                        with col_vis2:
+                            st.markdown("#### 📈 Comparison")
+                            bar_fig = create_probability_bars(short_stay_prob, long_stay_prob)
+                            st.pyplot(bar_fig)
+                            plt.close()
                         
                         # Clinical interpretation
-                        st.markdown("### 💡 Clinical Interpretation")
+                        st.markdown("#### 💡 Clinical Recommendation")
                         if long_stay_prob < 30:
-                            interpretation = "**Low Risk**: Patient is likely to have a normal length of stay. Standard discharge planning is appropriate."
+                            interpretation = "**Low Risk**: Standard discharge planning appropriate."
                         elif long_stay_prob < 70:
-                            interpretation = "**Moderate Risk**: Patient has moderate risk for extended stay. Consider enhanced monitoring and discharge planning."
+                            interpretation = "**Moderate Risk**: Enhanced monitoring recommended."
                         else:
-                            interpretation = "**High Risk**: Patient is at high risk for extended hospitalization. Recommend proactive interventions and multidisciplinary planning."
+                            interpretation = "**High Risk**: Proactive intervention needed."
                         
-                        st.info(interpretation)
+                        st.markdown(f'<div class="compact-info">{interpretation}</div>', unsafe_allow_html=True)
                     
                     else:
                         # Classification only (no probabilities)
@@ -534,10 +572,10 @@ def main():
         
         else:
             # Default state when no prediction has been made
-            st.info("👈 Please enter patient information and click 'Predict Length of Stay' to see results.")
+            st.info("👈 Enter patient information and click 'Predict' to see results.")
             
-            # Show example visualization
-            st.markdown("### 📊 Example Risk Assessment")
+            # Show compact example
+            st.markdown("#### 📊 Example")
             example_fig = create_probability_gauge(45)
             st.pyplot(example_fig)
             plt.close()
