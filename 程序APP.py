@@ -4,21 +4,20 @@ import numpy as np
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
-from io import BytesIO
 import warnings
 
-# 设置页面配置
+# Page configuration
 st.set_page_config(
-    page_title="AKI Prediction Model",
+    page_title="Length of Stay Prediction",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 抑制警告信息
+# Suppress warnings
 warnings.filterwarnings('ignore')
 
-# 自定义CSS样式
+# Custom CSS styling
 st.markdown("""
 <style>
 .main-header {
@@ -50,69 +49,69 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 1) 模型加载函数
+# 1) Model loading function with better error handling
 @st.cache_resource(show_spinner=True)
 def load_model(path: str):
-    """加载训练好的模型"""
+    """Load the trained model"""
     try:
         model = joblib.load(path)
-        st.success("✅ 模型加载成功！")
+        st.success("✅ Model loaded successfully!")
         return model
     except FileNotFoundError:
-        st.error(f"❌ 找不到模型文件：{path}")
-        st.info("请确保模型文件 'rf.pkl' 在正确的路径中")
+        st.error(f"❌ Model file not found: {path}")
+        st.info("Please ensure the model file 'rf.pkl' is in the correct path")
         st.stop()
     except Exception as e:
-        st.error(f"❌ 模型加载失败：{e}")
+        st.error(f"❌ Model loading failed: {e}")
         st.stop()
 
-# 2) 特征规格定义
+# 2) Feature specifications
 feature_specs = {
     "Preoperative_waiting_time_plus_7d": {
         "type": "categorical",
         "options": {"No delay": 0, "Delay > 7 days": 1},
         "default": "No delay",
-        "description": "术前等待时间是否超过7天"
+        "description": "Whether preoperative waiting time exceeds 7 days"
     },
     "Cardiovascular_comorbidities": {
         "type": "categorical",
         "options": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "是否有心血管合并症"
+        "description": "Presence of cardiovascular comorbidities"
     },
     "Lung_comorbidities": {
         "type": "categorical",
         "options": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "是否有肺部合并症"
+        "description": "Presence of lung comorbidities"
     },
     "Operation_time_plus_230min": {
         "type": "categorical",
         "options": {"≤230 min": 0, ">230 min": 1},
         "default": "≤230 min",
-        "description": "手术时间是否超过230分钟"
+        "description": "Whether operation time exceeds 230 minutes"
     },
     "NO._Levels": {
         "type": "categorical",
         "options": {"Level 2": 0, "Level 3": 1, "Level 4": 2, "Level >4": 3},
         "default": "Level 2",
-        "description": "手术级别"
+        "description": "Number of surgical levels"
     },
     "Infectious_complications": {
         "type": "categorical",
         "options": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "是否有感染性并发症"
+        "description": "Presence of infectious complications"
     },
     "Major_complications": {
         "type": "categorical",
         "options": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "是否有主要并发症"
+        "description": "Presence of major complications"
     }
 }
 
-# 3) 特征顺序（与训练时保持一致）
+# 3) Feature order (consistent with training)
 feature_order = [
     "Preoperative_waiting_time_plus_7d",
     "Cardiovascular_comorbidities", 
@@ -123,10 +122,10 @@ feature_order = [
     "Major_complications"
 ]
 
-# 4) 构建背景数据集
+# 4) Build background dataset for SHAP
 @st.cache_data
 def build_background_df():
-    """构建用于SHAP解释的背景数据集"""
+    """Build background dataset for SHAP interpretation"""
     row = []
     for feat in feature_order:
         spec = feature_specs[feat]
@@ -137,44 +136,18 @@ def build_background_df():
             row.append(float(spec["default"]))
     return pd.DataFrame([row], columns=feature_order).astype(float)
 
-# 5) 主界面
-def main():
-    # 页面标题
-    st.markdown('<h1 class="main-header">🏥 急性肾损伤(AKI)预测模型</h1>', unsafe_allow_html=True)
-    
-    # 侧边栏信息
-    with st.sidebar:
-        st.markdown("### 📊 模型信息")
-        st.info("本模型用于预测患者发生急性肾损伤(AKI)的风险")
-        
-        st.markdown("### 📋 使用说明")
-        st.markdown("""
-        1. 在左侧输入患者的临床特征
-        2. 点击"开始预测"按钮
-        3. 查看预测结果和SHAP解释
-        """)
-    
-    # 加载模型
-    try:
-        model = load_model("rf.pkl")
-    except:
-        st.stop()
-    
-    # 构建背景数据
-    background_df = build_background_df()
-    
-    # 特征输入界面
-    st.markdown('<h2 class="sub-header">📝 请输入患者特征</h2>', unsafe_allow_html=True)
-    
-    # 使用列布局
-    col1, col2 = st.columns(2)
-    
+# 5) Input processing function
+def process_user_inputs():
+    """Process user inputs and convert to numerical values"""
     numeric_values = []
+    
+    # Create two columns for better layout
+    col1, col2 = st.columns(2)
     
     for i, feat in enumerate(feature_order):
         spec = feature_specs[feat]
         
-        # 交替使用两列
+        # Alternate between columns
         current_col = col1 if i % 2 == 0 else col2
         
         with current_col:
@@ -183,17 +156,18 @@ def main():
                 idx = labels.index(spec["default"])
                 
                 choice = st.selectbox(
-                    feat.replace("_", " ").title(),
+                    feat.replace("_", " ").replace("NO.", "Number of").title(),
                     options=labels,
                     index=idx,
                     key=feat,
                     help=spec.get("description", "")
                 )
                 
-                code_val = spec["options"][choice]
-                numeric_values.append(float(code_val))
+                # Convert choice to numeric value
+                code_val = float(spec["options"][choice])
+                numeric_values.append(code_val)
             else:
-                # 数值型特征的处理
+                # For numerical features
                 v = st.number_input(
                     f"{feat.replace('_', ' ').title()} ({spec['min']}–{spec['max']})",
                     min_value=float(spec["min"]),
@@ -204,90 +178,138 @@ def main():
                 )
                 numeric_values.append(float(v))
     
-    # 预测按钮
+    return numeric_values
+
+# 6) Main application
+def main():
+    # Page title
+    st.markdown('''
+    <h1 class="main-header">🏥 Length of Stay Prediction Model</h1>
+    <p style="text-align: center; font-size: 1.1rem; color: #666;">
+    Interpretable Random Forest Model for Predicting Length of Stay After<br>
+    First Elective Open Anterior Cervical Fusion in Elderly Patients
+    </p>
+    ''', unsafe_allow_html=True)
+    
+    # Sidebar information
+    with st.sidebar:
+        st.markdown("### 📊 Model Information")
+        st.info("This model predicts the length of hospital stay for elderly patients undergoing anterior cervical fusion surgery")
+        
+        st.markdown("### 📋 Instructions")
+        st.markdown("""
+        1. Enter patient clinical features on the main panel
+        2. Click the "Predict Length of Stay" button
+        3. Review the prediction results and SHAP explanations
+        """)
+        
+        st.markdown("### ℹ️ About")
+        st.markdown("""
+        **Target Population**: Elderly patients (≥60 years)  
+        **Procedure**: First elective open anterior cervical fusion  
+        **Outcome**: Hospital length of stay  
+        **Model Type**: Random Forest with SHAP interpretability
+        """)
+    
+    # Load model
+    try:
+        model = load_model("rf.pkl")
+    except:
+        st.stop()
+    
+    # Build background data
+    background_df = build_background_df()
+    
+    # Feature input section
+    st.markdown('<h2 class="sub-header">📝 Patient Clinical Features</h2>', unsafe_allow_html=True)
+    
+    # Process user inputs
+    numeric_values = process_user_inputs()
+    
+    # Create input DataFrame
+    X_df = pd.DataFrame([numeric_values], columns=feature_order).astype(float)
+    
+    # Prediction button
     st.markdown("---")
     col_pred1, col_pred2, col_pred3 = st.columns([1, 1, 1])
     
     with col_pred2:
-        predict_button = st.button("🔮 开始预测", type="primary", use_container_width=True)
+        predict_button = st.button("🔮 Predict Length of Stay", type="primary", use_container_width=True)
     
-    # 预测逻辑
+    # Prediction logic
     if predict_button:
-        # 构建输入数据
-        X_df = pd.DataFrame([numeric_values], columns=feature_order).astype(float)
-        
-        # 数据验证
+        # Data validation
         if X_df.isnull().any().any():
-            st.error("❌ 输入数据中存在缺失值，请检查所有特征是否已正确填写")
+            st.error("❌ Missing values detected in input data. Please check all features are properly filled.")
             return
         
-        # 执行预测
-        with st.spinner("正在进行预测..."):
+        # Make prediction
+        with st.spinner("Making prediction..."):
             try:
-                # 预测概率
+                # Prediction with probability (if available)
                 if hasattr(model, "predict_proba"):
+                    # Get prediction probabilities
                     proba = model.predict_proba(X_df)[0]
-                    classes = getattr(model, "classes_", [0, 1])
+                    classes = getattr(model, "classes_", list(range(len(proba))))
                     
-                    if 1 in classes:
-                        pos_idx = list(classes).index(1)
-                        pos_proba = float(proba[pos_idx]) * 100
+                    # Get predicted class
+                    pred_class = model.predict(X_df)[0]
+                    pred_proba = float(np.max(proba)) * 100
+                    
+                    # Display prediction results
+                    st.markdown('<h2 class="sub-header">🎯 Prediction Results</h2>', unsafe_allow_html=True)
+                    
+                    # Interpret the prediction (assuming binary classification: 0=short stay, 1=long stay)
+                    if pred_class == 0:
+                        stay_category = "Short Stay"
+                        color = "#28a745"  # Green
+                        interpretation = "Patient is predicted to have a shorter length of stay"
                     else:
-                        pos_proba = float(np.max(proba)) * 100
-                    
-                    # 显示预测结果
-                    st.markdown('<h2 class="sub-header">🎯 预测结果</h2>', unsafe_allow_html=True)
-                    
-                    # 根据概率设置风险等级和颜色
-                    if pos_proba < 30:
-                        risk_level = "低风险"
-                        color = "#28a745"  # 绿色
-                    elif pos_proba < 70:
-                        risk_level = "中等风险" 
-                        color = "#ffc107"  # 黄色
-                    else:
-                        risk_level = "高风险"
-                        color = "#dc3545"  # 红色
+                        stay_category = "Long Stay" 
+                        color = "#dc3545"  # Red
+                        interpretation = "Patient is predicted to have a longer length of stay"
                     
                     st.markdown(f"""
                     <div class="prediction-box">
-                        <h3 style="color: {color};">AKI发生概率: {pos_proba:.2f}%</h3>
-                        <h4 style="color: {color};">风险等级: {risk_level}</h4>
+                        <h3 style="color: {color};">Predicted Category: {stay_category}</h3>
+                        <h4 style="color: {color};">Confidence: {pred_proba:.2f}%</h4>
+                        <p>{interpretation}</p>
                     </div>
                     """, unsafe_allow_html=True)
                 
                 else:
-                    # 仅分类预测
+                    # Classification only
                     y_pred = model.predict(X_df)[0]
-                    result_text = "高风险" if y_pred == 1 else "低风险"
+                    result_text = "Long Stay" if y_pred == 1 else "Short Stay"
                     st.markdown(f"""
                     <div class="prediction-box">
-                        <h3>预测结果: {result_text}</h3>
-                        <p>注：当前模型不提供概率预测</p>
+                        <h3>Predicted Length of Stay: {result_text}</h3>
+                        <p>Note: Current model does not provide probability predictions</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    pos_proba = None
             
             except Exception as e:
-                st.error(f"❌ 预测过程中出现错误：{e}")
+                st.error(f"❌ Error during prediction: {e}")
+                st.info("Please check your input values and try again.")
                 return
         
-        # SHAP可视化
-        st.markdown('<h2 class="sub-header">📊 模型解释 (SHAP)</h2>', unsafe_allow_html=True)
+        # SHAP visualization
+        st.markdown('<h2 class="sub-header">📊 Model Interpretation (SHAP)</h2>', unsafe_allow_html=True)
         
         try:
-            with st.spinner("正在生成SHAP解释..."):
-                # 创建SHAP解释器
+            with st.spinner("Generating SHAP explanations..."):
+                # Create SHAP explainer
                 explainer = shap.TreeExplainer(model, data=background_df)
                 shap_values = explainer.shap_values(X_df)
                 
-                # 处理多类别情况
+                # Handle multi-class case
                 if isinstance(shap_values, list):
                     classes = getattr(model, "classes_", list(range(len(shap_values))))
-                    if 1 in classes:
-                        class_idx = list(classes).index(1)
+                    # Use the positive class (1) if available, otherwise use the predicted class
+                    if len(classes) > 1:
+                        class_idx = 1  # Assuming 1 represents "long stay"
                     else:
-                        class_idx = 1 if len(shap_values) > 1 else 0
+                        class_idx = 0
                     
                     sv_row = shap_values[class_idx][0]
                     expected = explainer.expected_value[class_idx]
@@ -295,53 +317,59 @@ def main():
                     sv_row = shap_values[0]
                     expected = explainer.expected_value
                 
-                # SHAP力图
-                st.markdown("#### 🔍 特征贡献分析 (Force Plot)")
+                # Create feature names for display
+                feature_names_display = [f.replace("_", " ").replace("NO.", "Num.") for f in X_df.columns]
+                
+                # SHAP force plot
+                st.markdown("#### 🔍 Feature Contribution Analysis (Force Plot)")
                 fig_force = plt.figure(figsize=(12, 3))
                 shap.force_plot(
                     base_value=expected,
                     shap_values=sv_row,
                     features=X_df.iloc[0, :],
-                    feature_names=[f.replace("_", " ") for f in X_df.columns],
+                    feature_names=feature_names_display,
                     matplotlib=True,
                     show=False
                 )
                 st.pyplot(fig_force)
                 plt.close()
                 
-                # SHAP条形图
-                st.markdown("#### 📈 特征重要性 (Bar Plot)")
+                # SHAP bar plot
+                st.markdown("#### 📈 Feature Importance (Bar Plot)")
                 fig_bar = plt.figure(figsize=(10, 6))
                 shap.bar_plot(
                     sv_row, 
-                    feature_names=[f.replace("_", " ") for f in X_df.columns],
+                    feature_names=feature_names_display,
                     show=False
                 )
-                plt.title("Feature Importance (SHAP Values)")
+                plt.title("Feature Importance for Length of Stay Prediction")
+                plt.tight_layout()
                 st.pyplot(fig_bar)
                 plt.close()
                 
-                # 特征解释说明
-                st.markdown("#### 💡 结果解释")
+                # Interpretation guide
+                st.markdown("#### 💡 How to Interpret Results")
                 st.markdown("""
                 <div class="feature-info">
-                <b>如何理解SHAP图表：</b><br>
-                • <b>Force Plot</b>: 显示各特征如何推动预测远离或接近基线值<br>
-                • <b>Bar Plot</b>: 显示各特征对预测结果的绝对贡献大小<br>
-                • <b>红色</b>: 增加AKI风险的因素<br>
-                • <b>蓝色</b>: 降低AKI风险的因素
+                <b>Understanding SHAP Plots:</b><br>
+                • <b>Force Plot</b>: Shows how each feature pushes the prediction away from or towards the baseline<br>
+                • <b>Bar Plot</b>: Shows the absolute contribution magnitude of each feature<br>
+                • <b>Red/Positive values</b>: Features that increase the likelihood of longer hospital stay<br>
+                • <b>Blue/Negative values</b>: Features that decrease the likelihood of longer hospital stay<br>
+                • <b>Baseline value</b>: Average prediction across all patients
                 </div>
                 """, unsafe_allow_html=True)
                 
         except Exception as e:
-            st.warning(f"⚠️ SHAP可视化生成失败：{e}")
-            st.info("SHAP解释功能暂时不可用，但预测结果仍然有效")
+            st.warning(f"⚠️ SHAP visualization failed: {e}")
+            st.info("SHAP interpretation is temporarily unavailable, but the prediction result is still valid.")
     
-    # 页面底部信息
+    # Footer
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666; font-size: 0.8rem;'>
-    ⚠️ 本工具仅供医疗辅助参考，不能替代专业医疗判断
+    ⚠️ This tool is for clinical decision support only and should not replace professional medical judgment.<br>
+    Model performance should be validated in your specific clinical setting.
     </div>
     """, unsafe_allow_html=True)
 
