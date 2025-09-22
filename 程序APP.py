@@ -73,14 +73,14 @@ st.markdown("""
     background-color: #f8f9fa;
     padding: 20px;
     border-radius: 10px;
-    height: 100vh;
+    min-height: 600px;
     overflow-y: auto;
 }
 .output-section {
     background-color: #ffffff;
     padding: 20px;
     border-radius: 10px;
-    height: 100vh;
+    min-height: 600px;
     overflow-y: auto;
 }
 .feature-group {
@@ -328,13 +328,13 @@ def convert_inputs_to_dataframe(user_inputs):
 def main():
     # Page title
     st.markdown('<h1 class="main-header">🏥 Length of Stay Prediction Model</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666; margin-bottom: 2rem;">Interpretable Random Forest Model for Predicting Length of Stay After First Elective Open Anterior Cervical Fusion in Elderly Patients</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666; margin-bottom: 1rem;">Interpretable Random Forest Model for Predicting Length of Stay After First Elective Open Anterior Cervical Fusion in Elderly Patients</p>', unsafe_allow_html=True)
     
     # Load model
     model = load_model("rf.pkl")
     
     # Create main layout: Left (Input) | Right (Output)
-    left_col, right_col = st.columns([1, 1], gap="large")
+    left_col, right_col = st.columns([1, 1], gap="medium")
     
     # =========================
     # LEFT COLUMN: INPUT SECTION  
