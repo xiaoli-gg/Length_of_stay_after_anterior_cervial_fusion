@@ -3,8 +3,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
-import plotly.express as px
+import matplotlib.patches as patches
 import warnings
 
 # Page configuration
@@ -17,6 +16,10 @@ st.set_page_config(
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
+
+# Set matplotlib style
+plt.style.use('default')
+plt.rcParams['figure.facecolor'] = 'white'
 
 # Custom CSS styling
 st.markdown("""
@@ -86,6 +89,13 @@ st.markdown("""
     border-radius: 8px;
     margin: 10px 0;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.metric-container {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+    margin: 10px 0;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -176,71 +186,126 @@ feature_order = [
 ]
 
 def create_probability_gauge(probability):
-    """Create a gauge chart for probability visualization"""
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = probability,
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': "Probability of Long Stay (%)"},
-        delta = {'reference': 50},
-        gauge = {
-            'axis': {'range': [None, 100]},
-            'bar': {'color': "darkblue"},
-            'steps': [
-                {'range': [0, 30], 'color': "lightgreen"},
-                {'range': [30, 70], 'color': "yellow"},
-                {'range': [70, 100], 'color': "lightcoral"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': 70
-            }
-        }
-    ))
+    """Create a gauge chart using matplotlib"""
+    fig, ax = plt.subplots(figsize=(8, 6))
     
-    fig.update_layout(
-        height=300,
-        margin=dict(l=20, r=20, t=60, b=20),
-        font={'size': 16}
-    )
+    # Create semicircle gauge
+    theta1, theta2 = 0, np.pi
+    center = (0.5, 0.5)
+    radius = 0.4
+    
+    # Background arc
+    theta = np.linspace(theta1, theta2, 100)
+    x = center[0] + radius * np.cos(theta)
+    y = center[1] + radius * np.sin(theta)
+    ax.plot(x, y, 'lightgray', linewidth=20)
+    
+    # Color segments
+    segments = [
+        (0, 30, '#28a745'),    # Green (Low risk)
+        (30, 70, '#ffc107'),   # Yellow (Medium risk) 
+        (70, 100, '#dc3545')   # Red (High risk)
+    ]
+    
+    for start, end, color in segments:
+        start_angle = np.pi * (1 - start/100)
+        end_angle = np.pi * (1 - end/100)
+        theta_seg = np.linspace(start_angle, end_angle, 50)
+        x_seg = center[0] + radius * np.cos(theta_seg)
+        y_seg = center[1] + radius * np.sin(theta_seg)
+        ax.plot(x_seg, y_seg, color, linewidth=20)
+    
+    # Needle
+    needle_angle = np.pi * (1 - probability/100)
+    needle_x = center[0] + (radius-0.05) * np.cos(needle_angle)
+    needle_y = center[1] + (radius-0.05) * np.sin(needle_angle)
+    ax.plot([center[0], needle_x], [center[1], needle_y], 'black', linewidth=4)
+    ax.plot(center[0], center[1], 'ko', markersize=8)
+    
+    # Labels
+    ax.text(center[0], center[1]-0.15, f'{probability:.1f}%', 
+            ha='center', va='center', fontsize=24, fontweight='bold')
+    ax.text(center[0], center[1]-0.25, 'Long Stay Probability', 
+            ha='center', va='center', fontsize=14)
+    
+    # Risk zone labels
+    ax.text(0.15, 0.65, 'Low\nRisk', ha='center', va='center', fontsize=10, color='green')
+    ax.text(0.5, 0.85, 'Medium Risk', ha='center', va='center', fontsize=10, color='orange')
+    ax.text(0.85, 0.65, 'High\nRisk', ha='center', va='center', fontsize=10, color='red')
+    
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0.3, 1)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.set_title('Risk Assessment Gauge', fontsize=16, pad=20)
+    
+    plt.tight_layout()
     return fig
 
-def create_probability_bar(probability):
-    """Create a horizontal bar chart for probability"""
-    fig = go.Figure()
+def create_probability_bars(short_prob, long_prob):
+    """Create probability bar chart"""
+    fig, ax = plt.subplots(figsize=(10, 6))
     
-    # Determine color based on probability
-    if probability < 30:
-        color = '#28a745'
-        risk_level = 'Low Risk'
-    elif probability < 70:
-        color = '#ffc107'
-        risk_level = 'Medium Risk'
-    else:
-        color = '#dc3545'
-        risk_level = 'High Risk'
+    categories = ['Short Stay', 'Long Stay']
+    probabilities = [short_prob, long_prob]
+    colors = ['#28a745' if short_prob > long_prob else '#90EE90', 
+              '#dc3545' if long_prob > short_prob else '#FFB6C1']
     
-    fig.add_trace(go.Bar(
-        y=['Probability'],
-        x=[probability],
-        orientation='h',
-        marker_color=color,
-        text=[f'{probability:.1f}%'],
-        textposition='inside',
-        textfont=dict(size=20, color='white'),
-        name=risk_level
-    ))
+    bars = ax.barh(categories, probabilities, color=colors, alpha=0.8, height=0.6)
     
-    fig.update_layout(
-        title=f"Length of Stay Risk Assessment: {risk_level}",
-        xaxis=dict(range=[0, 100], title="Probability (%)"),
-        yaxis=dict(showticklabels=False),
-        height=150,
-        margin=dict(l=20, r=20, t=60, b=20),
-        showlegend=False
-    )
+    # Add percentage labels
+    for i, (bar, prob) in enumerate(zip(bars, probabilities)):
+        width = bar.get_width()
+        ax.text(width + 1, bar.get_y() + bar.get_height()/2, 
+                f'{prob:.1f}%', ha='left', va='center', fontweight='bold', fontsize=14)
     
+    ax.set_xlim(0, 100)
+    ax.set_xlabel('Probability (%)', fontsize=12)
+    ax.set_title('Prediction Probabilities', fontsize=16, pad=20)
+    ax.grid(axis='x', alpha=0.3)
+    
+    # Add reference line at 50%
+    ax.axvline(x=50, color='gray', linestyle='--', alpha=0.5)
+    ax.text(51, 1.5, '50%', rotation=90, va='bottom', ha='left', color='gray')
+    
+    plt.tight_layout()
+    return fig
+
+def create_risk_visualization(probability):
+    """Create a simple risk level visualization"""
+    fig, ax = plt.subplots(figsize=(10, 4))
+    
+    # Risk zones
+    zones = [
+        (0, 30, '#28a745', 'Low Risk'),
+        (30, 70, '#ffc107', 'Medium Risk'),
+        (70, 100, '#dc3545', 'High Risk')
+    ]
+    
+    y_pos = 0.5
+    height = 0.3
+    
+    for start, end, color, label in zones:
+        rect = patches.Rectangle((start, y_pos), end-start, height, 
+                               facecolor=color, alpha=0.7, edgecolor='black')
+        ax.add_patch(rect)
+        ax.text(start + (end-start)/2, y_pos + height/2, label, 
+                ha='center', va='center', fontweight='bold', fontsize=12)
+    
+    # Current probability marker
+    marker_y = y_pos + height + 0.1
+    ax.plot(probability, marker_y, 'v', color='black', markersize=15)
+    ax.text(probability, marker_y + 0.15, f'{probability:.1f}%', 
+            ha='center', va='bottom', fontsize=14, fontweight='bold')
+    
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 1.2)
+    ax.set_xlabel('Probability of Long Stay (%)', fontsize=12)
+    ax.set_title('Risk Level Assessment', fontsize=16, pad=20)
+    ax.set_yticks([])
+    ax.grid(axis='x', alpha=0.3)
+    
+    plt.tight_layout()
     return fig
 
 def convert_inputs_to_dataframe(user_inputs):
@@ -395,36 +460,46 @@ def main():
                         
                         col1, col2 = st.columns(2)
                         with col1:
-                            st.metric(
-                                label="Short Stay Probability",
-                                value=f"{short_stay_prob:.1f}%",
-                                delta=f"{short_stay_prob - 50:.1f}%" if short_stay_prob != 50 else None
-                            )
+                            st.markdown(f"""
+                            <div class="metric-container">
+                                <h4>Short Stay Probability</h4>
+                                <h2 style="color: #28a745;">{short_stay_prob:.1f}%</h2>
+                            </div>
+                            """, unsafe_allow_html=True)
                         with col2:
-                            st.metric(
-                                label="Long Stay Probability", 
-                                value=f"{long_stay_prob:.1f}%",
-                                delta=f"{long_stay_prob - 50:.1f}%" if long_stay_prob != 50 else None
-                            )
+                            st.markdown(f"""
+                            <div class="metric-container">
+                                <h4>Long Stay Probability</h4>
+                                <h2 style="color: #dc3545;">{long_stay_prob:.1f}%</h2>
+                            </div>
+                            """, unsafe_allow_html=True)
                         
-                        # Probability visualization - Gauge
+                        # Visualization 1: Risk Gauge
                         st.markdown("### 🎯 Risk Assessment Gauge")
                         gauge_fig = create_probability_gauge(long_stay_prob)
-                        st.plotly_chart(gauge_fig, use_container_width=True)
+                        st.pyplot(gauge_fig)
+                        plt.close()
                         
-                        # Probability visualization - Bar
-                        st.markdown("### 📈 Probability Distribution")
-                        bar_fig = create_probability_bar(long_stay_prob)
-                        st.plotly_chart(bar_fig, use_container_width=True)
+                        # Visualization 2: Probability Bars
+                        st.markdown("### 📈 Probability Comparison")
+                        bar_fig = create_probability_bars(short_stay_prob, long_stay_prob)
+                        st.pyplot(bar_fig)
+                        plt.close()
                         
-                        # Interpretation guide
+                        # Visualization 3: Risk Level
+                        st.markdown("### 🚦 Risk Level Indicator")
+                        risk_fig = create_risk_visualization(long_stay_prob)
+                        st.pyplot(risk_fig)
+                        plt.close()
+                        
+                        # Clinical interpretation
                         st.markdown("### 💡 Clinical Interpretation")
                         if long_stay_prob < 30:
-                            interpretation = "Patient is likely to have a normal length of stay. Standard discharge planning is appropriate."
+                            interpretation = "**Low Risk**: Patient is likely to have a normal length of stay. Standard discharge planning is appropriate."
                         elif long_stay_prob < 70:
-                            interpretation = "Patient has moderate risk for extended stay. Consider enhanced monitoring and discharge planning."
+                            interpretation = "**Moderate Risk**: Patient has moderate risk for extended stay. Consider enhanced monitoring and discharge planning."
                         else:
-                            interpretation = "Patient is at high risk for extended hospitalization. Recommend proactive interventions and multidisciplinary planning."
+                            interpretation = "**High Risk**: Patient is at high risk for extended hospitalization. Recommend proactive interventions and multidisciplinary planning."
                         
                         st.info(interpretation)
                     
@@ -452,7 +527,8 @@ def main():
             # Show example visualization
             st.markdown("### 📊 Example Risk Assessment")
             example_fig = create_probability_gauge(45)
-            st.plotly_chart(example_fig, use_container_width=True)
+            st.pyplot(example_fig)
+            plt.close()
         
         st.markdown('</div>', unsafe_allow_html=True)
     
