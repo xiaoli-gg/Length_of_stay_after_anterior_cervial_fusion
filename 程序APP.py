@@ -2,8 +2,9 @@ import streamlit as st
 import joblib
 import numpy as np
 import pandas as pd
-import shap
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import plotly.express as px
 import warnings
 
 # Page configuration
@@ -11,115 +12,159 @@ st.set_page_config(
     page_title="Length of Stay Prediction",
     page_icon="🏥",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
-plt.style.use('default')  # Use default matplotlib style to avoid font issues
 
 # Custom CSS styling
 st.markdown("""
 <style>
 .main-header {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
     color: #1f77b4;
     text-align: center;
-    margin-bottom: 2rem;
-}
-.sub-header {
-    font-size: 1.5rem;
-    color: #ff7f0e;
-    margin-top: 2rem;
     margin-bottom: 1rem;
 }
+.section-header {
+    font-size: 1.4rem;
+    color: #ff7f0e;
+    margin-bottom: 1rem;
+    padding: 10px 0;
+    border-bottom: 2px solid #f0f0f0;
+}
 .prediction-box {
-    background-color: #f0f2f6;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px;
+    border-radius: 15px;
+    margin: 20px 0;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.risk-box {
     padding: 20px;
     border-radius: 10px;
-    border-left: 5px solid #1f77b4;
-    margin: 20px 0;
+    margin: 15px 0;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.1rem;
 }
-.feature-info {
-    background-color: #e8f4f8;
-    padding: 10px;
-    border-radius: 5px;
+.low-risk {
+    background-color: #d4edda;
+    color: #155724;
+    border: 2px solid #c3e6cb;
+}
+.medium-risk {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 2px solid #ffeaa7;
+}
+.high-risk {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 2px solid #f5c6cb;
+}
+.input-section {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    height: 100vh;
+    overflow-y: auto;
+}
+.output-section {
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    height: 100vh;
+    overflow-y: auto;
+}
+.feature-group {
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
     margin: 10px 0;
-    font-size: 0.9rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 1) Model loading function
+# Model loading function
 @st.cache_resource(show_spinner=True)
 def load_model(path: str):
     """Load the trained model"""
     try:
         model = joblib.load(path)
-        st.success("✅ Model loaded successfully!")
         return model
     except FileNotFoundError:
         st.error(f"❌ Model file not found: {path}")
-        st.info("Please ensure the model file 'rf.pkl' is in the correct path")
         st.stop()
     except Exception as e:
         st.error(f"❌ Model loading failed: {e}")
         st.stop()
 
-# 2) Feature specifications - FIXED: Ensure all mappings are correct
+# Feature specifications
 feature_specs = {
     "Preoperative_waiting_time_plus_7d": {
         "type": "categorical",
-        "options": ["No delay", "Delay > 7 days"],  # Changed to list
+        "options": ["No delay", "Delay > 7 days"],
         "mapping": {"No delay": 0, "Delay > 7 days": 1},
         "default": "No delay",
-        "description": "Whether preoperative waiting time exceeds 7 days"
+        "description": "Preoperative waiting time",
+        "group": "Preoperative Factors"
     },
     "Cardiovascular_comorbidities": {
         "type": "categorical",
         "options": ["No", "Yes"],
         "mapping": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "Presence of cardiovascular comorbidities"
+        "description": "Cardiovascular comorbidities",
+        "group": "Comorbidities"
     },
     "Lung_comorbidities": {
         "type": "categorical",
         "options": ["No", "Yes"],
         "mapping": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "Presence of lung comorbidities"
+        "description": "Lung comorbidities",
+        "group": "Comorbidities"
     },
     "Operation_time_plus_230min": {
         "type": "categorical",
         "options": ["≤230 min", ">230 min"],
         "mapping": {"≤230 min": 0, ">230 min": 1},
         "default": "≤230 min",
-        "description": "Whether operation time exceeds 230 minutes"
+        "description": "Operation duration",
+        "group": "Surgical Factors"
     },
     "NO._Levels": {
         "type": "categorical",
         "options": ["Level 2", "Level 3", "Level 4", "Level >4"],
         "mapping": {"Level 2": 0, "Level 3": 1, "Level 4": 2, "Level >4": 3},
         "default": "Level 2",
-        "description": "Number of surgical levels"
+        "description": "Number of surgical levels",
+        "group": "Surgical Factors"
     },
     "Infectious_complications": {
         "type": "categorical",
         "options": ["No", "Yes"],
         "mapping": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "Presence of infectious complications"
+        "description": "Infectious complications",
+        "group": "Complications"
     },
     "Major_complications": {
         "type": "categorical",
         "options": ["No", "Yes"],
         "mapping": {"No": 0, "Yes": 1},
         "default": "No",
-        "description": "Presence of major complications"
+        "description": "Major complications",
+        "group": "Complications"
     }
 }
 
-# 3) Feature order (consistent with training)
+# Feature order
 feature_order = [
     "Preoperative_waiting_time_plus_7d",
     "Cardiovascular_comorbidities", 
@@ -130,77 +175,76 @@ feature_order = [
     "Major_complications"
 ]
 
-# 4) Build background dataset for SHAP
-@st.cache_data
-def build_background_df():
-    """Build background dataset for SHAP interpretation"""
-    row = []
-    for feat in feature_order:
-        spec = feature_specs[feat]
-        if spec["type"] == "categorical":
-            default_label = spec["default"]
-            default_value = spec["mapping"][default_label]
-            row.append(float(default_value))
-        else:
-            row.append(float(spec["default"]))
-    return pd.DataFrame([row], columns=feature_order).astype(float)
+def create_probability_gauge(probability):
+    """Create a gauge chart for probability visualization"""
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = probability,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': "Probability of Long Stay (%)"},
+        delta = {'reference': 50},
+        gauge = {
+            'axis': {'range': [None, 100]},
+            'bar': {'color': "darkblue"},
+            'steps': [
+                {'range': [0, 30], 'color': "lightgreen"},
+                {'range': [30, 70], 'color': "yellow"},
+                {'range': [70, 100], 'color': "lightcoral"}
+            ],
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': 70
+            }
+        }
+    ))
+    
+    fig.update_layout(
+        height=300,
+        margin=dict(l=20, r=20, t=60, b=20),
+        font={'size': 16}
+    )
+    return fig
 
-# 5) Safe input processing function
-def collect_user_inputs():
-    """Collect and safely convert user inputs to numerical values"""
-    st.markdown('<h2 class="sub-header">📝 Patient Clinical Features</h2>', unsafe_allow_html=True)
+def create_probability_bar(probability):
+    """Create a horizontal bar chart for probability"""
+    fig = go.Figure()
     
-    # Create two columns for better layout
-    col1, col2 = st.columns(2)
+    # Determine color based on probability
+    if probability < 30:
+        color = '#28a745'
+        risk_level = 'Low Risk'
+    elif probability < 70:
+        color = '#ffc107'
+        risk_level = 'Medium Risk'
+    else:
+        color = '#dc3545'
+        risk_level = 'High Risk'
     
-    user_inputs = {}
+    fig.add_trace(go.Bar(
+        y=['Probability'],
+        x=[probability],
+        orientation='h',
+        marker_color=color,
+        text=[f'{probability:.1f}%'],
+        textposition='inside',
+        textfont=dict(size=20, color='white'),
+        name=risk_level
+    ))
     
-    for i, feat in enumerate(feature_order):
-        spec = feature_specs[feat]
-        
-        # Alternate between columns
-        current_col = col1 if i % 2 == 0 else col2
-        
-        with current_col:
-            if spec["type"] == "categorical":
-                # Create clean display name
-                display_name = feat.replace("_", " ").replace("NO.", "Number of").title()
-                
-                # Find default index
-                try:
-                    default_idx = spec["options"].index(spec["default"])
-                except ValueError:
-                    default_idx = 0
-                
-                # Get user choice
-                choice = st.selectbox(
-                    display_name,
-                    options=spec["options"],
-                    index=default_idx,
-                    key=f"input_{feat}",
-                    help=spec.get("description", "")
-                )
-                
-                # Store the choice (we'll convert later)
-                user_inputs[feat] = choice
-                
-            else:
-                # For numerical features (if any)
-                v = st.number_input(
-                    f"{feat.replace('_', ' ').title()} ({spec['min']}–{spec['max']})",
-                    min_value=float(spec["min"]),
-                    max_value=float(spec["max"]),
-                    value=float(spec["default"]),
-                    key=f"input_{feat}",
-                    help=spec.get("description", "")
-                )
-                user_inputs[feat] = v
+    fig.update_layout(
+        title=f"Length of Stay Risk Assessment: {risk_level}",
+        xaxis=dict(range=[0, 100], title="Probability (%)"),
+        yaxis=dict(showticklabels=False),
+        height=150,
+        margin=dict(l=20, r=20, t=60, b=20),
+        showlegend=False
+    )
     
-    return user_inputs
+    return fig
 
-# 6) Convert inputs to numerical DataFrame
 def convert_inputs_to_dataframe(user_inputs):
-    """Safely convert user inputs to numerical DataFrame"""
+    """Convert user inputs to numerical DataFrame"""
     numeric_values = []
     
     for feat in feature_order:
@@ -208,229 +252,209 @@ def convert_inputs_to_dataframe(user_inputs):
         user_choice = user_inputs[feat]
         
         if spec["type"] == "categorical":
-            # Convert using mapping
-            try:
-                numeric_value = spec["mapping"][user_choice]
-                numeric_values.append(float(numeric_value))
-            except KeyError:
-                st.error(f"❌ Invalid value for {feat}: {user_choice}")
-                st.stop()
+            numeric_value = spec["mapping"][user_choice]
+            numeric_values.append(float(numeric_value))
         else:
-            # Already numeric
             numeric_values.append(float(user_choice))
     
-    # Create DataFrame
     df = pd.DataFrame([numeric_values], columns=feature_order)
-    
-    # Ensure all columns are float
-    df = df.astype(float)
-    
-    # Debug: Show the converted values
-    with st.expander("🔍 Debug: Converted Values"):
-        st.write("Numerical values passed to model:")
-        for i, feat in enumerate(feature_order):
-            st.write(f"• {feat}: {numeric_values[i]} ({type(numeric_values[i])})")
-        st.dataframe(df)
-    
-    return df
+    return df.astype(float)
 
-# 7) Main application
 def main():
     # Page title
-    st.markdown('''
-    <h1 class="main-header">🏥 Length of Stay Prediction Model</h1>
-    <p style="text-align: center; font-size: 1.1rem; color: #666;">
-    Interpretable Random Forest Model for Predicting Length of Stay After<br>
-    First Elective Open Anterior Cervical Fusion in Elderly Patients
-    </p>
-    ''', unsafe_allow_html=True)
-    
-    # Sidebar information
-    with st.sidebar:
-        st.markdown("### 📊 Model Information")
-        st.info("This model predicts the length of hospital stay for elderly patients undergoing anterior cervical fusion surgery")
-        
-        st.markdown("### 📋 Instructions")
-        st.markdown("""
-        1. Enter patient clinical features on the main panel
-        2. Click the "Predict Length of Stay" button
-        3. Review the prediction results and SHAP explanations
-        """)
-        
-        st.markdown("### ℹ️ About")
-        st.markdown("""
-        **Target Population**: Elderly patients (≥60 years)  
-        **Procedure**: First elective open anterior cervical fusion  
-        **Outcome**: Hospital length of stay  
-        **Model Type**: Random Forest with SHAP interpretability
-        """)
+    st.markdown('<h1 class="main-header">🏥 Length of Stay Prediction Model</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666; margin-bottom: 2rem;">Interpretable Random Forest Model for Predicting Length of Stay After First Elective Open Anterior Cervical Fusion in Elderly Patients</p>', unsafe_allow_html=True)
     
     # Load model
-    try:
-        model = load_model("rf.pkl")
-    except:
-        st.stop()
+    model = load_model("rf.pkl")
     
-    # Build background data
-    background_df = build_background_df()
+    # Create main layout: Left (Input) | Right (Output)
+    left_col, right_col = st.columns([1, 1], gap="large")
     
-    # Collect user inputs
-    user_inputs = collect_user_inputs()
-    
-    # Prediction button
-    st.markdown("---")
-    col_pred1, col_pred2, col_pred3 = st.columns([1, 1, 1])
-    
-    with col_pred2:
-        predict_button = st.button("🔮 Predict Length of Stay", type="primary", use_container_width=True)
-    
-    # Prediction logic
-    if predict_button:
-        st.markdown('<h2 class="sub-header">🎯 Processing Prediction</h2>', unsafe_allow_html=True)
+    # =========================
+    # LEFT COLUMN: INPUT SECTION  
+    # =========================
+    with left_col:
+        st.markdown('<div class="input-section">', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">📝 Patient Information</h2>', unsafe_allow_html=True)
         
-        # Convert inputs to DataFrame
-        try:
-            X_df = convert_inputs_to_dataframe(user_inputs)
-        except Exception as e:
-            st.error(f"❌ Error converting inputs: {e}")
-            return
+        user_inputs = {}
         
-        # Validate DataFrame
-        if X_df.isnull().any().any():
-            st.error("❌ Missing values detected in converted data")
-            return
+        # Group features by category
+        feature_groups = {}
+        for feat in feature_order:
+            group = feature_specs[feat]["group"]
+            if group not in feature_groups:
+                feature_groups[group] = []
+            feature_groups[group].append(feat)
         
-        if not all(np.issubdtype(X_df[col].dtype, np.number) for col in X_df.columns):
-            st.error("❌ Non-numeric values detected in converted data")
-            st.write("Data types:", X_df.dtypes)
-            return
-        
-        # Make prediction
-        with st.spinner("Making prediction..."):
-            try:
-                # Get prediction
-                if hasattr(model, "predict_proba"):
-                    # Get probabilities
-                    proba = model.predict_proba(X_df)[0]
-                    classes = getattr(model, "classes_", [0, 1])
-                    
-                    # Get predicted class
-                    pred_class = model.predict(X_df)[0]
-                    max_proba = float(np.max(proba)) * 100
-                    
-                    # Display results
-                    st.markdown('<h2 class="sub-header">🎯 Prediction Results</h2>', unsafe_allow_html=True)
-                    
-                    # Interpret prediction
-                    if pred_class == 0:
-                        stay_category = "Short Stay"
-                        color = "#28a745"
-                        interpretation = "Patient is predicted to have a shorter length of stay"
-                    else:
-                        stay_category = "Long Stay"
-                        color = "#dc3545"
-                        interpretation = "Patient is predicted to have a longer length of stay"
-                    
-                    st.markdown(f"""
-                    <div class="prediction-box">
-                        <h3 style="color: {color};">Predicted Category: {stay_category}</h3>
-                        <h4 style="color: {color};">Confidence: {max_proba:.2f}%</h4>
-                        <p>{interpretation}</p>
-                        <p><small>Predicted class: {pred_class}, Probabilities: {[f'{p:.3f}' for p in proba]}</small></p>
-                    </div>
-                    """, unsafe_allow_html=True)
+        # Display features by group
+        for group_name, features in feature_groups.items():
+            st.markdown(f'<div class="feature-group">', unsafe_allow_html=True)
+            st.markdown(f"**{group_name}**")
+            
+            for feat in features:
+                spec = feature_specs[feat]
                 
+                if spec["type"] == "categorical":
+                    try:
+                        default_idx = spec["options"].index(spec["default"])
+                    except ValueError:
+                        default_idx = 0
+                    
+                    choice = st.selectbox(
+                        spec["description"],
+                        options=spec["options"],
+                        index=default_idx,
+                        key=f"input_{feat}"
+                    )
+                    user_inputs[feat] = choice
                 else:
-                    # Classification only
-                    y_pred = model.predict(X_df)[0]
-                    result_text = "Long Stay" if y_pred == 1 else "Short Stay"
-                    st.markdown(f"""
-                    <div class="prediction-box">
-                        <h3>Predicted Length of Stay: {result_text}</h3>
-                        <p>Predicted class: {y_pred}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    v = st.number_input(
+                        spec["description"],
+                        min_value=float(spec["min"]),
+                        max_value=float(spec["max"]),
+                        value=float(spec["default"]),
+                        key=f"input_{feat}"
+                    )
+                    user_inputs[feat] = v
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Predict button
+        st.markdown("---")
+        predict_button = st.button("🔮 Predict Length of Stay", type="primary", use_container_width=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # =========================
+    # RIGHT COLUMN: OUTPUT SECTION
+    # =========================
+    with right_col:
+        st.markdown('<div class="output-section">', unsafe_allow_html=True)
+        st.markdown('<h2 class="section-header">🎯 Prediction Results</h2>', unsafe_allow_html=True)
+        
+        if predict_button:
+            try:
+                # Convert inputs to DataFrame
+                X_df = convert_inputs_to_dataframe(user_inputs)
                 
-                # Show successful prediction
-                st.success("✅ Prediction completed successfully!")
+                # Make prediction
+                with st.spinner("Making prediction..."):
+                    if hasattr(model, "predict_proba"):
+                        # Get probabilities
+                        proba = model.predict_proba(X_df)[0]
+                        classes = getattr(model, "classes_", [0, 1])
+                        
+                        # Get predicted class and probabilities
+                        pred_class = model.predict(X_df)[0]
+                        
+                        # Assuming binary classification: 0=short stay, 1=long stay
+                        if 1 in classes:
+                            long_stay_prob = float(proba[list(classes).index(1)]) * 100
+                            short_stay_prob = float(proba[list(classes).index(0)]) * 100
+                        else:
+                            long_stay_prob = float(proba[1]) * 100 if len(proba) > 1 else float(proba[0]) * 100
+                            short_stay_prob = 100 - long_stay_prob
+                        
+                        # Display main prediction result
+                        if pred_class == 0:
+                            outcome = "Short Stay"
+                            main_prob = short_stay_prob
+                        else:
+                            outcome = "Long Stay"
+                            main_prob = long_stay_prob
+                        
+                        st.markdown(f"""
+                        <div class="prediction-box">
+                            <h2>Predicted Outcome</h2>
+                            <h1>{outcome}</h1>
+                            <h3>Confidence: {main_prob:.1f}%</h3>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Risk assessment
+                        if long_stay_prob < 30:
+                            risk_class = "low-risk"
+                            risk_text = "Low Risk of Extended Stay"
+                        elif long_stay_prob < 70:
+                            risk_class = "medium-risk" 
+                            risk_text = "Medium Risk of Extended Stay"
+                        else:
+                            risk_class = "high-risk"
+                            risk_text = "High Risk of Extended Stay"
+                        
+                        st.markdown(f"""
+                        <div class="risk-box {risk_class}">
+                            {risk_text}
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Detailed probabilities
+                        st.markdown("### 📊 Detailed Probabilities")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric(
+                                label="Short Stay Probability",
+                                value=f"{short_stay_prob:.1f}%",
+                                delta=f"{short_stay_prob - 50:.1f}%" if short_stay_prob != 50 else None
+                            )
+                        with col2:
+                            st.metric(
+                                label="Long Stay Probability", 
+                                value=f"{long_stay_prob:.1f}%",
+                                delta=f"{long_stay_prob - 50:.1f}%" if long_stay_prob != 50 else None
+                            )
+                        
+                        # Probability visualization - Gauge
+                        st.markdown("### 🎯 Risk Assessment Gauge")
+                        gauge_fig = create_probability_gauge(long_stay_prob)
+                        st.plotly_chart(gauge_fig, use_container_width=True)
+                        
+                        # Probability visualization - Bar
+                        st.markdown("### 📈 Probability Distribution")
+                        bar_fig = create_probability_bar(long_stay_prob)
+                        st.plotly_chart(bar_fig, use_container_width=True)
+                        
+                        # Interpretation guide
+                        st.markdown("### 💡 Clinical Interpretation")
+                        if long_stay_prob < 30:
+                            interpretation = "Patient is likely to have a normal length of stay. Standard discharge planning is appropriate."
+                        elif long_stay_prob < 70:
+                            interpretation = "Patient has moderate risk for extended stay. Consider enhanced monitoring and discharge planning."
+                        else:
+                            interpretation = "Patient is at high risk for extended hospitalization. Recommend proactive interventions and multidisciplinary planning."
+                        
+                        st.info(interpretation)
+                    
+                    else:
+                        # Classification only (no probabilities)
+                        y_pred = model.predict(X_df)[0]
+                        outcome = "Long Stay" if y_pred == 1 else "Short Stay"
+                        
+                        st.markdown(f"""
+                        <div class="prediction-box">
+                            <h2>Predicted Outcome</h2>
+                            <h1>{outcome}</h1>
+                            <p>Note: Probability information not available</p>
+                        </div>
+                        """, unsafe_allow_html=True)
             
             except Exception as e:
                 st.error(f"❌ Prediction error: {e}")
-                st.error(f"Error type: {type(e)}")
-                st.write("Input data shape:", X_df.shape)
-                st.write("Input data types:", X_df.dtypes)
-                return
+                st.error("Please check your inputs and try again.")
         
-        # SHAP visualization
-        st.markdown('<h2 class="sub-header">📊 Model Interpretation (SHAP)</h2>', unsafe_allow_html=True)
+        else:
+            # Default state when no prediction has been made
+            st.info("👈 Please enter patient information and click 'Predict Length of Stay' to see results.")
+            
+            # Show example visualization
+            st.markdown("### 📊 Example Risk Assessment")
+            example_fig = create_probability_gauge(45)
+            st.plotly_chart(example_fig, use_container_width=True)
         
-        try:
-            with st.spinner("Generating SHAP explanations..."):
-                # Create SHAP explainer
-                explainer = shap.TreeExplainer(model, data=background_df)
-                shap_values = explainer.shap_values(X_df)
-                
-                # Handle multi-class case
-                if isinstance(shap_values, list):
-                    # For binary classification, use the positive class
-                    class_idx = 1 if len(shap_values) > 1 else 0
-                    sv_row = shap_values[class_idx][0]
-                    expected = explainer.expected_value[class_idx]
-                else:
-                    sv_row = shap_values[0]
-                    expected = explainer.expected_value
-                
-                # Create readable feature names
-                feature_names_display = [f.replace("_", " ").replace("NO.", "Num.") for f in X_df.columns]
-                
-                # SHAP force plot
-                st.markdown("#### 🔍 Feature Contribution Analysis")
-                try:
-                    fig_force = plt.figure(figsize=(12, 3))
-                    shap.force_plot(
-                        base_value=expected,
-                        shap_values=sv_row,
-                        features=X_df.iloc[0, :],
-                        feature_names=feature_names_display,
-                        matplotlib=True,
-                        show=False
-                    )
-                    st.pyplot(fig_force)
-                    plt.close()
-                except Exception as e:
-                    st.warning(f"Force plot failed: {e}")
-                
-                # SHAP bar plot
-                st.markdown("#### 📈 Feature Importance")
-                try:
-                    fig_bar = plt.figure(figsize=(10, 6))
-                    shap.bar_plot(
-                        sv_row, 
-                        feature_names=feature_names_display,
-                        show=False
-                    )
-                    plt.title("Feature Importance for Length of Stay Prediction")
-                    plt.tight_layout()
-                    st.pyplot(fig_bar)
-                    plt.close()
-                except Exception as e:
-                    st.warning(f"Bar plot failed: {e}")
-                
-                # Interpretation guide
-                st.markdown("#### 💡 How to Interpret Results")
-                st.markdown("""
-                <div class="feature-info">
-                <b>Understanding SHAP Plots:</b><br>
-                • <b>Force Plot</b>: Shows how each feature pushes the prediction away from or towards the baseline<br>
-                • <b>Bar Plot</b>: Shows the absolute contribution magnitude of each feature<br>
-                • <b>Red/Positive values</b>: Features that increase the likelihood of longer hospital stay<br>
-                • <b>Blue/Negative values</b>: Features that decrease the likelihood of longer hospital stay
-                </div>
-                """, unsafe_allow_html=True)
-                
-        except Exception as e:
-            st.warning(f"⚠️ SHAP visualization failed: {e}")
-            st.info("SHAP interpretation is temporarily unavailable, but the prediction result is still valid.")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Footer
     st.markdown("---")
