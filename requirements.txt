@@ -1,14 +1,7 @@
-# Core dependencies for the Length of Stay Prediction App
-streamlit>=1.28.0
-joblib>=1.3.0
-pandas>=1.5.0
-numpy>=1.24.0
-matplotlib>=3.6.0
-scikit-learn==1.4.2
-warnings
-
-# Optional: if you want to add plotly later for enhanced visualizations
-plotly>=5.15.0
-
-# Additional useful packages
-seaborn>=0.12.0
+streamlit==1.30.0
+joblib==1.4.2
+numpy==1.26.4
+pandas==2.2.2
+matplotlib==3.8.0
+scikit-learn==1.5.1
+shap==0.45.1
