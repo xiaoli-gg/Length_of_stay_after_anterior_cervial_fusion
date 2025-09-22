@@ -572,10 +572,10 @@ def main():
         
         else:
             # Default state when no prediction has been made
-            st.info("👈 Enter patient information and click 'Predict' to see results.")
+            st.info("👈 Please enter patient information and click 'Predict Length of Stay' to see results.")
             
-            # Show compact example
-            st.markdown("#### 📊 Example")
+            # Show example visualization
+            st.markdown("### 📊 Example Risk Assessment")
             example_fig = create_probability_gauge(45)
             st.pyplot(example_fig)
             plt.close()
